@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Fintrack — Personal Finance</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Mono:wght@300;400;500&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <!-- Toast notification container -->
+    <div id="toastContainer"></div>
+
+    <!-- Sidebar -->
+    <aside class="sidebar">
+      <div class="sidebar-logo">
+        <span class="logo-icon">◈</span>
+        <span class="logo-text">Fintrack</span>
+      </div>
+      <nav class="sidebar-nav">
+        <a href="#" class="nav-item active" data-section="dashboard">
+          <span class="nav-icon">▦</span> Dashboard
+        </a>
+        <a href="#" class="nav-item" data-section="transactions">
+          <span class="nav-icon">⇅</span> Transactions
+        </a>
+        <a href="#" class="nav-item" data-section="users">
+          <span class="nav-icon">◎</span> Users
+        </a>
+      </nav>
+      <div class="sidebar-status">
+        <div id="apiStatusDot" class="status-dot"></div>
+        <span id="apiStatusText">Connecting…</span>
+      </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="main">
+      <!-- Header -->
+      <header class="topbar">
+        <div>
+          <h1 class="page-title" id="pageTitle">Dashboard</h1>
+          <p class="page-subtitle" id="pageSubtitle">
+            Overview of your financial activity
+          </p>
+        </div>
+        <div class="topbar-right">
+          <div class="date-badge" id="currentDate"></div>
+        </div>
+      </header>
+
+      <!-- ===== DASHBOARD SECTION ===== -->
+      <section class="section" id="section-dashboard">
+        <!-- Summary Cards -->
+        <div class="cards-grid">
+          <div class="card card--income">
+            <div class="card-label">Total Credits</div>
+            <div class="card-value" id="totalIncome">$0.00</div>
+            <div class="card-sub">Money in</div>
+          </div>
+          <div class="card card--expense">
+            <div class="card-label">Total Debits</div>
+            <div class="card-value" id="totalExpense">$0.00</div>
+            <div class="card-sub">Money out</div>
+          </div>
+          <div class="card card--balance">
+            <div class="card-label">Net Balance</div>
+            <div class="card-value" id="netBalance">$0.00</div>
+            <div class="card-sub">All time</div>
+          </div>
+          <div class="card card--count">
+            <div class="card-label">Transactions</div>
+            <div class="card-value" id="txCount">0</div>
+            <div class="card-sub">Total records</div>
+          </div>
+        </div>
+
+        <!-- Category Breakdown -->
+        <div class="panel">
+          <div class="panel-header">
+            <h2 class="panel-title">Spending by Category</h2>
+          </div>
+          <div id="categoryBreakdown" class="category-breakdown">
+            <p class="empty-state">
+              Fetch transactions to see category breakdown.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <!-- ===== TRANSACTIONS SECTION ===== -->
+      <section class="section hidden" id="section-transactions">
+        <!-- Fetch Transactions Panel -->
+        <div class="panel">
+          <div class="panel-header">
+            <h2 class="panel-title">Fetch from Plaid Sandbox</h2>
+          </div>
+          <div class="form-row">
+            <div class="field">
+              <label class="field-label" for="userId">User ID</label>
+              <input
+                class="input"
+                type="number"
+                id="userId"
+                placeholder="e.g. 1"
+                min="1"
+              />
+            </div>
+            <button class="btn btn--primary" id="fetchTransactions">
+              <span class="btn-text">Sync Transactions</span>
+              <span class="btn-loader hidden"></span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Filter Bar -->
+        <div class="filter-bar">
+          <input
+            class="input input--search"
+            type="text"
+            id="searchTx"
+            placeholder="Search description…"
+          />
+          <select class="input input--select" id="filterCategory">
+            <option value="">All categories</option>
+            <option value="Food">Food</option>
+            <option value="Transport">Transport</option>
+            <option value="Utilities">Utilities</option>
+            <option value="Entertainment">Entertainment</option>
+            <option value="Other">Other</option>
+          </select>
+          <select class="input input--select" id="sortOrder">
+            <option value="desc">Newest first</option>
+            <option value="asc">Oldest first</option>
+          </select>
+        </div>
+
+        <!-- Transactions Table -->
+        <div class="panel panel--table">
+          <div id="tableLoader" class="table-loader hidden">
+            <div class="spinner"></div>
+            <span>Loading transactions…</span>
+          </div>
+          <div class="table-wrap">
+            <table id="transactionsTable">
+              <thead>
+                <tr>
+                  <th>Date</th>
+                  <th>Description</th>
+                  <th>Category</th>
+                  <th class="text-right">Amount</th>
+                </tr>
+              </thead>
+              <tbody id="txBody">
+                <tr>
+                  <td colspan="4" class="empty-cell">
+                    No transactions yet. Enter a User ID and sync.
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="table-footer" id="tableFooter"></div>
+        </div>
+      </section>
+
+      <!-- ===== USERS SECTION ===== -->
+      <section class="section hidden" id="section-users">
+        <div class="panel">
+          <div class="panel-header">
+            <h2 class="panel-title">Create New User</h2>
+          </div>
+          <div class="form-grid">
+            <div class="field">
+              <label class="field-label" for="name">Full Name</label>
+              <input
+                class="input"
+                type="text"
+                id="name"
+                placeholder="Jane Doe"
+              />
+            </div>
+            <div class="field">
+              <label class="field-label" for="email">Email Address</label>
+              <input
+                class="input"
+                type="email"
+                id="email"
+                placeholder="jane@example.com"
+              />
+            </div>
+          </div>
+          <button class="btn btn--primary" id="createUser">
+            <span class="btn-text">Create User</span>
+            <span class="btn-loader hidden"></span>
+          </button>
+          <div id="createUserResult" class="result-badge hidden"></div>
+        </div>
+      </section>
+    </main>
+
+    <script src="script.js"></script>
+  </body>
+</html>
