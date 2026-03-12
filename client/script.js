@@ -3,8 +3,8 @@
 // ============================================================
 
 // Backend API base URL
-const baseUrl = 'http://localhost:52419/api';
-
+//const baseUrl = 'http://localhost:52419/api';(un comment for local development)
+const baseUrl = 'https://personalFinanceTracker-api.onrender.com/api';
 // ------------------- DOM ELEMENTS -------------------
 const apiStatusDot = document.getElementById('apiStatusDot');
 const apiStatusText = document.getElementById('apiStatusText');
