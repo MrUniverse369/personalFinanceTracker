@@ -3,14 +3,25 @@
    Matches Fintrack dark theme — bg #0a0b0e, accent #4fffb0
    ============================================================ */
    .cold-overlay {
-    position: fixed;
-    inset: 0;
+    position: fixed;       /* taken fully out of document flow */
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    width: 100vw;          /* explicit — prevents flex body from squashing it */
+    height: 100vh;
+    min-width: 100vw;
+    min-height: 100vh;
     background: var(--bg);
     z-index: 9999;
     display: flex;
+    flex-direction: column; /* override body's row flex direction */
     align-items: center;
     justify-content: center;
     transition: opacity 0.5s ease, visibility 0.5s ease;
+    /* Ensure it's never treated as a flex item by body */
+    flex-shrink: 0;
+    margin: 0;
   }
   .cold-overlay.hidden {
     opacity: 0;

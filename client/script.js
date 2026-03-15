@@ -153,31 +153,44 @@ function setupNavigation() {
 
 // ------------------- API STATUS (drives cold-start overlay) -------------------
 async function checkApiStatus() {
-  const TIMEOUT_MS = 90000; // 90 s — Render cold starts can take ~60–75 s
+  const TIMEOUT_MS = 90000;
+  const MAX_ATTEMPTS = 3;
 
-  try {
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
+  // Use the correct lowercase render URL — capital letters can cause silent failures
+  const healthUrl = 'https://personalfinancetracker-api.onrender.com/api';
 
-    const res = await fetch(`${baseUrl}`, { signal: controller.signal });
-    clearTimeout(timer);
+  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+    try {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
 
-    if (!res.ok) throw new Error('API unreachable');
+      const res = await fetch(healthUrl, { signal: controller.signal });
+      clearTimeout(timer);
 
-    // Server is up — update status dot and dismiss overlay
-    apiStatusDot.style.backgroundColor = '#4fffb0';
-    apiStatusDot.style.boxShadow       = '0 0 6px #4fffb0';
-    apiStatusText.textContent          = 'Online';
-    stopColdUI();
+      if (!res.ok) throw new Error('API unreachable');
 
-  } catch (err) {
-    if (err.name === 'AbortError') {
-      failColdUI('Server took too long to respond.');
-    } else {
-      failColdUI('Could not reach the server.');
+      // Server is up — update status dot and dismiss overlay
+      apiStatusDot.style.backgroundColor = '#4fffb0';
+      apiStatusDot.style.boxShadow       = '0 0 6px #4fffb0';
+      apiStatusText.textContent          = 'Online';
+      stopColdUI();
+      return; // done
+
+    } catch (err) {
+      // On last attempt give up and show error
+      if (attempt === MAX_ATTEMPTS) {
+        const msg = err.name === 'AbortError'
+          ? 'Server took too long to respond.'
+          : 'Could not reach the server.';
+        failColdUI(msg);
+        apiStatusDot.style.backgroundColor = '#ff6b6b';
+        apiStatusText.textContent          = 'Offline';
+      }
+      // Otherwise loop and try again (brief pause between retries)
+      else {
+        await new Promise(r => setTimeout(r, 2000));
+      }
     }
-    apiStatusDot.style.backgroundColor = '#ff6b6b';
-    apiStatusText.textContent          = 'Offline';
   }
 }
 
