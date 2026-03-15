@@ -11,9 +11,9 @@ if (!process.env.DATABASE_URL) {
 
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
-  max:              10,    // max connections in pool
+  max:              5,      // free tier has limited connections; keep pool small
   idleTimeoutMillis: 30000,
-  connectionTimeoutMillis: 5000,
+  connectionTimeoutMillis: 10000, // increased: free DB can be slow to accept on cold start
   ssl: process.env.DB_SSL === 'true' ? { rejectUnauthorized: false } : false,
 });
 
@@ -21,6 +21,19 @@ const pool = new Pool({
 pool.on('error', (err) => {
   console.error('[DB] Unexpected pool error:', err.message);
 });
+
+// Warm the pool on startup — but do NOT crash the server if the DB
+// is still waking up. The Pool will retry automatically on first request.
+pool.connect()
+  .then(client => {
+    console.log('✅ Connected to PostgreSQL');
+    client.release();
+  })
+  .catch(err => {
+    console.warn('⚠️  Initial DB connect failed (may still be waking up):', err.message);
+    // Do NOT call process.exit() — let the server stay alive.
+    // The pool will establish a connection on the first incoming request.
+  });
 
 /**
  * Run a parameterised query.

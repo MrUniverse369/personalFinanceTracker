@@ -35,15 +35,11 @@ app.use(cors({
 app.use(express.json());
 
 // ------------------- SERVE FRONTEND -------------------
-// Static assets (CSS, JS, images) — cached for 7 days by the browser.
-// index.html itself is intentionally NOT cached (maxAge: 0) so users
-// always get the latest HTML on a fresh visit or refresh.
 app.use(express.static(path.join(__dirname, '../client'), {
   maxAge: '7d',
   etag: true,
   lastModified: true,
   setHeaders(res, filePath) {
-    // Never cache the HTML entry point
     if (filePath.endsWith('.html')) {
       res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
       res.setHeader('Pragma', 'no-cache');
@@ -53,7 +49,6 @@ app.use(express.static(path.join(__dirname, '../client'), {
 }));
 
 app.get('/', (req, res) => {
-  // Explicitly prevent caching on the root route too
   res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
   res.sendFile(path.join(__dirname, '../client/index.html'));
 });
@@ -77,25 +72,19 @@ function handleError(res, err, context = '') {
 
 // ------------------- PLAID TRANSACTION FETCH -------------------
 async function fetchTransactionsFromPlaid(accessToken, startDate, endDate) {
-
   console.log('[Plaid] Firing sandboxItemFireWebhook (INITIAL_UPDATE)...');
-
   try {
     await plaidClient.sandboxItemFireWebhook({
       access_token: accessToken,
       webhook_type: 'TRANSACTIONS',
       webhook_code: 'INITIAL_UPDATE',
     });
-
     console.log('[Plaid] Webhook fired successfully.');
-
   } catch (webhookErr) {
-
     console.warn(
       '[Plaid] Webhook fire failed (non-fatal, continuing):',
       webhookErr.response?.data?.error_code ?? webhookErr.message
     );
-
   }
 
   console.log('[Plaid] Sleeping 10s for sandbox data preparation...');
@@ -105,132 +94,106 @@ async function fetchTransactionsFromPlaid(accessToken, startDate, endDate) {
   const delayMs = 10000;
 
   for (let attempt = 1; attempt <= retries; attempt++) {
-
     try {
-
       console.log(`[Plaid] transactionsGet attempt ${attempt}/${retries}...`);
-
       const { data } = await plaidClient.transactionsGet({
         access_token: accessToken,
         start_date: startDate,
         end_date: endDate,
         options: { count: 100, offset: 0 },
       });
-
       console.log(`[Plaid] SUCCESS on attempt ${attempt} — ${data.transactions.length} transactions`);
-
       return data;
-
     } catch (err) {
-
       const errorCode = err.response?.data?.error_code;
-
       console.log(`[Plaid] Attempt ${attempt} error_code: ${errorCode}`);
-
       if (errorCode === 'PRODUCT_NOT_READY' && attempt < retries) {
-
         console.log(`[Plaid] Still not ready. Waiting ${delayMs}ms...`);
-
         await sleep(delayMs);
-
       } else {
-
         throw err;
-
       }
     }
   }
-
   throw new Error('Plaid transactions never became ready after maximum retries.');
 }
 
 // ------------------- ROUTES -------------------
 
-// Health check
+// ── Health check — keeps server + DB alive via cron ping ──
+// Set up a free cron at cron-job.org to GET this URL every 14 min
+app.get('/health', async (req, res) => {
+  try {
+    await db.query('SELECT 1');           // warms the DB connection too
+    res.json({ status: 'ok', ts: new Date().toISOString() });
+  } catch (err) {
+    res.status(503).json({ status: 'error', message: err.message });
+  }
+});
+
+// Legacy health check (keeps existing /api route working)
 app.get('/api', (req, res) => {
   res.json({ status: 'ok', message: 'Fintrack API is running' });
 });
 
 // ---------- USERS ----------
 app.post('/api/users', async (req, res) => {
-
   const { name, email } = req.body;
 
   if (!name?.trim())
     return res.status(400).json({ error: 'Name is required.' });
-
   if (!email?.trim())
     return res.status(400).json({ error: 'Email is required.' });
 
   const emailRe = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-
   if (!emailRe.test(email))
     return res.status(400).json({ error: 'Invalid email address.' });
 
   try {
-
     const result = await db.query(
       'INSERT INTO users (name, email) VALUES ($1, $2) RETURNING user_id, name, email',
       [name.trim(), email.trim().toLowerCase()]
     );
-
     res.status(201).json(result.rows[0]);
-
   } catch (err) {
-
     if (err.code === '23505') {
       return res.status(409).json({ error: 'A user with this email already exists.' });
     }
-
     handleError(res, err, 'POST /api/users');
   }
-
 });
 
 // ---------- TRANSACTIONS ----------
 app.post('/api/transactions', async (req, res) => {
-
   const user_id = parseInt(req.body.user_id, 10);
 
-  if (!user_id || isNaN(user_id)) {
+  if (!user_id || isNaN(user_id))
     return res.status(400).json({ error: 'A valid user_id is required.' });
-  }
 
   const userCheck = await db.query(
     'SELECT user_id FROM users WHERE user_id = $1',
     [user_id]
   );
-
-  if (!userCheck.rows.length) {
+  if (!userCheck.rows.length)
     return res.status(404).json({ error: `User ${user_id} not found.` });
-  }
 
   try {
-
     console.log('[Plaid] Creating sandbox public token...');
-
     const { data: ptData } = await plaidClient.sandboxPublicTokenCreate({
       institution_id: 'ins_109508',
       initial_products: ['transactions'],
     });
 
-    console.log('[Plaid] Public token created.');
-
     console.log('[Plaid] Exchanging public token...');
-
     const { data: tokenData } = await plaidClient.itemPublicTokenExchange({
       public_token: ptData.public_token,
     });
 
-    console.log('[Plaid] Access token obtained.');
-
     const startDate = isoDate(90);
-    const endDate = isoDate(0);
+    const endDate   = isoDate(0);
 
     const txData = await fetchTransactionsFromPlaid(
-      tokenData.access_token,
-      startDate,
-      endDate
+      tokenData.access_token, startDate, endDate
     );
 
     const transactions = txData.transactions;
@@ -239,16 +202,14 @@ app.post('/api/transactions', async (req, res) => {
 
     const catMap = {
       'Food and Drink': 1,
-      'Travel': 2,
-      'Service': 3,
-      'Recreation': 4,
+      'Travel':         2,
+      'Service':        3,
+      'Recreation':     4,
     };
 
     for (const t of transactions) {
-
-      const plaidCat = t.category?.[0] ?? 'Other';
+      const plaidCat    = t.category?.[0] ?? 'Other';
       const category_id = catMap[plaidCat] ?? 5;
-
       await db.query(
         `INSERT INTO transactions (user_id, date, description, amount, category_id)
          VALUES ($1, $2, $3, $4, $5)
@@ -262,25 +223,18 @@ app.post('/api/transactions', async (req, res) => {
       count: transactions.length,
       date_range: { start: startDate, end: endDate },
     });
-
   } catch (err) {
-
     handleError(res, err, 'POST /api/transactions');
-
   }
-
 });
 
 // Get transactions
 app.get('/api/transactions/:user_id', async (req, res) => {
-
   const user_id = parseInt(req.params.user_id, 10);
-
   if (!user_id || isNaN(user_id))
     return res.status(400).json({ error: 'Valid user_id required' });
 
   try {
-
     const result = await db.query(
       `SELECT t.transaction_id, t.date, t.description, t.amount, c.name AS category
        FROM transactions t
@@ -289,40 +243,27 @@ app.get('/api/transactions/:user_id', async (req, res) => {
        ORDER BY t.date DESC`,
       [user_id]
     );
-
     res.json(result.rows);
-
   } catch (err) {
-
     handleError(res, err, 'GET /api/transactions/:user_id');
-
   }
-
 });
 
 // Delete transactions
 app.delete('/api/transactions/:user_id', async (req, res) => {
-
   const user_id = parseInt(req.params.user_id, 10);
-
   if (!user_id || isNaN(user_id))
     return res.status(400).json({ error: 'Valid user_id required' });
 
   try {
-
     const result = await db.query(
       'DELETE FROM transactions WHERE user_id = $1 RETURNING transaction_id',
       [user_id]
     );
-
     res.json({ deleted: result.rowCount });
-
   } catch (err) {
-
     handleError(res, err, 'DELETE /api/transactions/:user_id');
-
   }
-
 });
 
 // 404 fallback

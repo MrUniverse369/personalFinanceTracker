@@ -13,6 +13,19 @@
     <link rel="stylesheet" href="style.css" />
   </head>
   <body>
+    <!-- ── Cold-start loading overlay ── -->
+    <div class="cold-overlay" id="coldOverlay">
+      <div class="cold-box">
+        <div class="cold-spinner"></div>
+        <p class="cold-title" id="coldTitle">Fintrack</p>
+        <p class="cold-msg" id="coldMsg">Starting up…</p>
+        <div class="cold-bar-track">
+          <div class="cold-bar" id="coldBar"></div>
+        </div>
+        <p class="cold-hint" id="coldHint"></p>
+      </div>
+    </div>
+
     <!-- Toast notification container -->
     <div id="toastContainer"></div>
 
@@ -52,11 +65,8 @@
       <!-- Header -->
       <header class="topbar">
         <div class="topbar-left">
-          <!-- Hamburger — mobile only -->
           <button class="hamburger" id="hamburger" aria-label="Open menu">
-            <span></span>
-            <span></span>
-            <span></span>
+            <span></span><span></span><span></span>
           </button>
           <div>
             <h1 class="page-title" id="pageTitle">Dashboard</h1>
@@ -72,7 +82,6 @@
 
       <!-- ===== DASHBOARD SECTION ===== -->
       <section class="section" id="section-dashboard">
-        <!-- Summary Cards -->
         <div class="cards-grid">
           <div class="card card--income">
             <div class="card-label">Total Credits</div>
@@ -96,7 +105,6 @@
           </div>
         </div>
 
-        <!-- Category Breakdown -->
         <div class="panel">
           <div class="panel-header">
             <h2 class="panel-title">Spending by Category</h2>
@@ -111,7 +119,6 @@
 
       <!-- ===== TRANSACTIONS SECTION ===== -->
       <section class="section hidden" id="section-transactions">
-        <!-- Fetch Transactions Panel -->
         <div class="panel">
           <div class="panel-header">
             <h2 class="panel-title">Fetch from Plaid Sandbox</h2>
@@ -134,7 +141,6 @@
           </div>
         </div>
 
-        <!-- Filter Bar -->
         <div class="filter-bar">
           <input
             class="input input--search"
@@ -158,7 +164,6 @@
           </div>
         </div>
 
-        <!-- Transactions Table -->
         <div class="panel panel--table">
           <div id="tableLoader" class="table-loader hidden">
             <div class="spinner"></div>

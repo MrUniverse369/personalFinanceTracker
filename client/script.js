@@ -2,8 +2,6 @@
 // FINTRACK — script.js
 // ============================================================
 
-// Backend API base URL
-//const baseUrl = 'http://localhost:52419/api'; (un comment for local development)
 const baseUrl = 'https://personalFinanceTracker-api.onrender.com/api';
 
 // ------------------- DOM ELEMENTS -------------------
@@ -46,19 +44,71 @@ const pageMeta = {
   users:        { title: 'Users',         subtitle: 'Manage your Fintrack accounts' },
 };
 
+// ------------------- COLD-START OVERLAY -------------------
+const coldOverlay = document.getElementById('coldOverlay');
+const coldTitle   = document.getElementById('coldTitle');
+const coldMsg     = document.getElementById('coldMsg');
+const coldBar     = document.getElementById('coldBar');
+const coldHint    = document.getElementById('coldHint');
+
+// Messages shown at increasing delays while waiting for the server
+const coldMessages = [
+  [0,  'Starting up…',                                     8 ],
+  [4,  'Waking up the server…',                            25],
+  [10, 'Connecting to the database…',                      45],
+  [20, 'Still warming up — almost there…',                 65],
+  [35, 'This can take up to a minute\non Render\'s free tier…', 82],
+  [55, 'Hang tight, nearly done…',                         94],
+];
+
+let coldTimers = [];
+
+function startColdUI() {
+  coldBar.style.width = '4%';
+  coldMessages.forEach(([delay, text, pct]) => {
+    const t = setTimeout(() => {
+      coldMsg.textContent = text;
+      coldBar.style.width = pct + '%';
+      // Show the "free tier" hint after 20 seconds
+      if (delay >= 20) {
+        coldHint.textContent = 'Free hosting spins down after 15 min of inactivity.';
+      }
+    }, delay * 1000);
+    coldTimers.push(t);
+  });
+}
+
+function stopColdUI() {
+  coldTimers.forEach(clearTimeout);
+  coldBar.style.transition = 'width 0.3s ease';
+  coldBar.style.width      = '100%';
+  coldMsg.textContent      = 'Ready!';
+  coldHint.textContent     = '';
+  setTimeout(() => coldOverlay.classList.add('hidden'), 400);
+}
+
+function failColdUI(message = 'Could not connect. Please refresh and try again.') {
+  coldTimers.forEach(clearTimeout);
+  coldBar.style.background = 'var(--expense)';
+  coldBar.style.width      = '100%';
+  coldMsg.textContent      = message;
+  coldHint.textContent     = 'Check your connection or try refreshing.';
+}
+
 // ------------------- INIT -------------------
 document.addEventListener('DOMContentLoaded', () => {
   setCurrentDate();
-  checkApiStatus();
   setupNavigation();
   setupMobileSidebar();
+  startColdUI();
+  checkApiStatus(); // drives overlay — waits for server to wake
 });
 
 // ------------------- MOBILE SIDEBAR -------------------
 function openSidebar() {
   sidebar.classList.add('open');
   sidebarOverlay.classList.add('active');
-  document.body.style.overflow = 'hidden'; // prevent background scroll
+  document.body.style.overflow = 'hidden';
 }
 
 function closeSidebar() {
@@ -72,15 +122,12 @@ function setupMobileSidebar() {
   sidebarClose.addEventListener('click', closeSidebar);
   sidebarOverlay.addEventListener('click', closeSidebar);
 
-  // Close sidebar on swipe left (mobile gesture)
   let touchStartX = 0;
   sidebar.addEventListener('touchstart', (e) => {
     touchStartX = e.touches[0].clientX;
   }, { passive: true });
-
   sidebar.addEventListener('touchmove', (e) => {
-    const deltaX = e.touches[0].clientX - touchStartX;
-    if (deltaX < -50) closeSidebar();
+    if (e.touches[0].clientX - touchStartX < -50) closeSidebar();
   }, { passive: true });
 }
 
@@ -90,39 +137,47 @@ function setupNavigation() {
     nav.addEventListener('click', (e) => {
       e.preventDefault();
       const target = nav.dataset.section;
-
-      // Show only the selected section
       Object.keys(sections).forEach(key => {
         sections[key].classList.toggle('hidden', key !== target);
       });
-
-      // Toggle active class
       navItems.forEach(n => n.classList.remove('active'));
       nav.classList.add('active');
-
-      // Update page title & subtitle
       if (pageMeta[target]) {
         pageTitle.textContent    = pageMeta[target].title;
         pageSubtitle.textContent = pageMeta[target].subtitle;
       }
-
-      // Close sidebar on mobile after navigation
       closeSidebar();
     });
   });
 }
 
-// ------------------- API STATUS -------------------
+// ------------------- API STATUS (drives cold-start overlay) -------------------
 async function checkApiStatus() {
+  const TIMEOUT_MS = 90000; // 90 s — Render cold starts can take ~60–75 s
+
   try {
-    const res = await fetch(`${baseUrl}`);
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
+
+    const res = await fetch(`${baseUrl}`, { signal: controller.signal });
+    clearTimeout(timer);
+
     if (!res.ok) throw new Error('API unreachable');
+
+    // Server is up — update status dot and dismiss overlay
     apiStatusDot.style.backgroundColor = '#4fffb0';
-    apiStatusDot.style.boxShadow = '0 0 6px #4fffb0';
-    apiStatusText.textContent = 'Online';
+    apiStatusDot.style.boxShadow       = '0 0 6px #4fffb0';
+    apiStatusText.textContent          = 'Online';
+    stopColdUI();
+
   } catch (err) {
+    if (err.name === 'AbortError') {
+      failColdUI('Server took too long to respond.');
+    } else {
+      failColdUI('Could not reach the server.');
+    }
     apiStatusDot.style.backgroundColor = '#ff6b6b';
-    apiStatusText.textContent = 'Offline';
+    apiStatusText.textContent          = 'Offline';
   }
 }
 
@@ -130,10 +185,7 @@ async function checkApiStatus() {
 function setCurrentDate() {
   const now = new Date();
   currentDateBadge.textContent = now.toLocaleDateString('en-GB', {
-    weekday: 'short',
-    day: 'numeric',
-    month: 'short',
-    year: 'numeric',
+    weekday: 'short', day: 'numeric', month: 'short', year: 'numeric',
   });
 }
 
@@ -156,11 +208,8 @@ createUserBtn.addEventListener('click', async () => {
       body:    JSON.stringify({ name, email }),
     });
     const data = await res.json();
-
     if (!res.ok) throw new Error(data.error || 'Failed to create user');
-
     showResult(createUserResult, `User created: ${data.name} (ID ${data.user_id})`, 'success');
-
   } catch (err) {
     showResult(createUserResult, err.message, 'error');
   } finally {
@@ -199,18 +248,14 @@ fetchTxBtn.addEventListener('click', async () => {
       headers: { 'Content-Type': 'application/json' },
       body:    JSON.stringify({ user_id: userId }),
     });
-
     const data = await res.json();
-
     if (!res.ok) throw new Error(data.error || 'Failed to sync transactions');
 
-    // Fetch saved transactions
     const txRes  = await fetch(`${baseUrl}/transactions/${userId}`);
     const txData = await txRes.json();
 
     tableLoader.classList.add('hidden');
     populateTransactionTable(txData);
-
   } catch (err) {
     tableLoader.classList.add('hidden');
     txBody.innerHTML = `<tr><td colspan="4" class="empty-cell">Error: ${err.message}</td></tr>`;
@@ -221,9 +266,9 @@ fetchTxBtn.addEventListener('click', async () => {
 });
 
 // ------------------- FILTERS -------------------
-const searchInput      = document.getElementById('searchTx');
-const filterCategory   = document.getElementById('filterCategory');
-const sortOrder        = document.getElementById('sortOrder');
+const searchInput    = document.getElementById('searchTx');
+const filterCategory = document.getElementById('filterCategory');
+const sortOrder      = document.getElementById('sortOrder');
 
 let allTransactions = [];
 
@@ -261,7 +306,6 @@ function populateTransactionTable(transactions) {
     return;
   }
 
-  // Compute dashboard totals from all (unfiltered) transactions
   let totalIncome = 0, totalExpense = 0;
   transactions.forEach(tx => {
     const amount = parseFloat(tx.amount);
@@ -303,14 +347,12 @@ function updateDashboard(transactions, totalIncome, totalExpense) {
   document.getElementById('netBalance').textContent   = `$${(totalIncome - totalExpense).toFixed(2)}`;
   document.getElementById('txCount').textContent      = transactions.length;
 
-  // Category breakdown
   const breakdown = document.getElementById('categoryBreakdown');
   if (!transactions.length) {
     breakdown.innerHTML = '<p class="empty-state">Fetch transactions to see category breakdown.</p>';
     return;
   }
 
-  // Sum expenses per category
   const catTotals = {};
   transactions.forEach(tx => {
     const amount = parseFloat(tx.amount);
