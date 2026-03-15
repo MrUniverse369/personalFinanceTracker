@@ -51,6 +51,31 @@ const coldMsg     = document.getElementById('coldMsg');
 const coldBar     = document.getElementById('coldBar');
 const coldHint    = document.getElementById('coldHint');
 
+// Force full-screen coverage immediately via inline styles.
+// CSS alone is not reliable here because body has display:flex —
+// some mobile browsers treat position:fixed children as flex items
+// and ignore the fixed positioning. Inline styles win over everything.
+(function lockOverlay() {
+  const s = coldOverlay.style;
+  s.position   = 'fixed';
+  s.top        = '0';
+  s.left       = '0';
+  s.right      = '0';
+  s.bottom     = '0';
+  s.width      = '100%';
+  s.height     = '100%';
+  s.minWidth   = '100vw';
+  s.minHeight  = '100vh';
+  s.zIndex     = '99999';
+  s.display    = 'flex';
+  s.flexDirection = 'column';
+  s.alignItems = 'center';
+  s.justifyContent = 'center';
+  s.background = '#0a0b0e';
+  // Lock body so nothing scrolls or peeks behind while overlay is up
+  document.body.style.overflow = 'hidden';
+})();
+
 // Messages shown at increasing delays while waiting for the server
 const coldMessages = [
   [0,  'Starting up…',                                     8 ],
@@ -84,15 +109,46 @@ function stopColdUI() {
   coldBar.style.width      = '100%';
   coldMsg.textContent      = 'Ready!';
   coldHint.textContent     = '';
-  setTimeout(() => coldOverlay.classList.add('hidden'), 400);
+  setTimeout(() => {
+    coldOverlay.style.opacity    = '0';
+    coldOverlay.style.visibility = 'hidden';
+    coldOverlay.style.pointerEvents = 'none';
+    // Restore body scrolling
+    document.body.style.overflow = '';
+  }, 400);
 }
 
 function failColdUI(message = 'Could not connect. Please refresh and try again.') {
   coldTimers.forEach(clearTimeout);
-  coldBar.style.background = 'var(--expense)';
+  coldBar.style.background = '#ff6b6b';
   coldBar.style.width      = '100%';
   coldMsg.textContent      = message;
   coldHint.textContent     = 'Check your connection or try refreshing.';
+  // Add a dismiss button so users aren't permanently blocked on error
+  const existing = coldOverlay.querySelector('.cold-dismiss');
+  if (!existing) {
+    const btn = document.createElement('button');
+    btn.className   = 'cold-dismiss';
+    btn.textContent = 'Dismiss';
+    btn.style.cssText = `
+      margin-top: 8px;
+      padding: 8px 20px;
+      background: transparent;
+      border: 1px solid #ff6b6b;
+      border-radius: 6px;
+      color: #ff6b6b;
+      font-family: var(--font-mono, monospace);
+      font-size: 0.78rem;
+      cursor: pointer;
+    `;
+    btn.addEventListener('click', () => {
+      coldOverlay.style.opacity    = '0';
+      coldOverlay.style.visibility = 'hidden';
+      coldOverlay.style.pointerEvents = 'none';
+      document.body.style.overflow = '';
+    });
+    coldOverlay.querySelector('.cold-box').appendChild(btn);
+  }
 }
 
 // ------------------- INIT -------------------
