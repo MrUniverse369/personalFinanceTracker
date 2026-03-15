@@ -16,11 +16,19 @@
     <!-- Toast notification container -->
     <div id="toastContainer"></div>
 
+    <!-- Mobile Sidebar Overlay -->
+    <div class="sidebar-overlay" id="sidebarOverlay"></div>
+
     <!-- Sidebar -->
-    <aside class="sidebar">
-      <div class="sidebar-logo">
-        <span class="logo-icon">◈</span>
-        <span class="logo-text">Fintrack</span>
+    <aside class="sidebar" id="sidebar">
+      <div class="sidebar-top">
+        <div class="sidebar-logo">
+          <span class="logo-icon">◈</span>
+          <span class="logo-text">Fintrack</span>
+        </div>
+        <button class="sidebar-close" id="sidebarClose" aria-label="Close menu">
+          ✕
+        </button>
       </div>
       <nav class="sidebar-nav">
         <a href="#" class="nav-item active" data-section="dashboard">
@@ -43,11 +51,19 @@
     <main class="main">
       <!-- Header -->
       <header class="topbar">
-        <div>
-          <h1 class="page-title" id="pageTitle">Dashboard</h1>
-          <p class="page-subtitle" id="pageSubtitle">
-            Overview of your financial activity
-          </p>
+        <div class="topbar-left">
+          <!-- Hamburger — mobile only -->
+          <button class="hamburger" id="hamburger" aria-label="Open menu">
+            <span></span>
+            <span></span>
+            <span></span>
+          </button>
+          <div>
+            <h1 class="page-title" id="pageTitle">Dashboard</h1>
+            <p class="page-subtitle" id="pageSubtitle">
+              Overview of your financial activity
+            </p>
+          </div>
         </div>
         <div class="topbar-right">
           <div class="date-badge" id="currentDate"></div>
@@ -126,18 +142,20 @@
             id="searchTx"
             placeholder="Search description…"
           />
-          <select class="input input--select" id="filterCategory">
-            <option value="">All categories</option>
-            <option value="Food">Food</option>
-            <option value="Transport">Transport</option>
-            <option value="Utilities">Utilities</option>
-            <option value="Entertainment">Entertainment</option>
-            <option value="Other">Other</option>
-          </select>
-          <select class="input input--select" id="sortOrder">
-            <option value="desc">Newest first</option>
-            <option value="asc">Oldest first</option>
-          </select>
+          <div class="filter-selects">
+            <select class="input input--select" id="filterCategory">
+              <option value="">All categories</option>
+              <option value="Food">Food</option>
+              <option value="Transport">Transport</option>
+              <option value="Utilities">Utilities</option>
+              <option value="Entertainment">Entertainment</option>
+              <option value="Other">Other</option>
+            </select>
+            <select class="input input--select" id="sortOrder">
+              <option value="desc">Newest first</option>
+              <option value="asc">Oldest first</option>
+            </select>
+          </div>
         </div>
 
         <!-- Transactions Table -->

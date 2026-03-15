@@ -35,9 +35,26 @@ app.use(cors({
 app.use(express.json());
 
 // ------------------- SERVE FRONTEND -------------------
-app.use(express.static(path.join(__dirname, '../client')));
+// Static assets (CSS, JS, images) — cached for 7 days by the browser.
+// index.html itself is intentionally NOT cached (maxAge: 0) so users
+// always get the latest HTML on a fresh visit or refresh.
+app.use(express.static(path.join(__dirname, '../client'), {
+  maxAge: '7d',
+  etag: true,
+  lastModified: true,
+  setHeaders(res, filePath) {
+    // Never cache the HTML entry point
+    if (filePath.endsWith('.html')) {
+      res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+      res.setHeader('Pragma', 'no-cache');
+      res.setHeader('Expires', '0');
+    }
+  },
+}));
 
 app.get('/', (req, res) => {
+  // Explicitly prevent caching on the root route too
+  res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
   res.sendFile(path.join(__dirname, '../client/index.html'));
 });
 
