@@ -70,6 +70,28 @@ function handleError(res, err, context = '') {
   res.status(500).json({ error: msg });
 }
 
+// ------------------- CATEGORY NORMALISER -------------------
+// Maps Plaid's raw category arrays to the clean IDs your DB and
+// client both expect: Food(1) Transport(2) Utilities(3) Entertainment(4) Other(5)
+function plaidCategoryToId(plaidCategories = []) {
+  const top = (plaidCategories[0] ?? '').toLowerCase();
+  const sub = (plaidCategories[1] ?? '').toLowerCase();
+
+  if (top.includes('food') || top.includes('restaurant') || sub.includes('restaurant') || sub.includes('coffee')) {
+    return 1; // Food
+  }
+  if (top.includes('travel') || top.includes('transport') || sub.includes('taxi') || sub.includes('ride') || sub.includes('airlines') || sub.includes('car service')) {
+    return 2; // Transport
+  }
+  if (top.includes('service') || top.includes('utilities') || top.includes('payment') || top.includes('bank') || top.includes('transfer') || sub.includes('utilities') || sub.includes('subscription')) {
+    return 3; // Utilities
+  }
+  if (top.includes('recreation') || top.includes('entertainment') || sub.includes('gym') || sub.includes('sport') || sub.includes('arts') || sub.includes('music')) {
+    return 4; // Entertainment
+  }
+  return 5; // Other
+}
+
 // ------------------- PLAID TRANSACTION FETCH -------------------
 async function fetchTransactionsFromPlaid(accessToken, startDate, endDate) {
   console.log('[Plaid] Firing sandboxItemFireWebhook (INITIAL_UPDATE)...');
@@ -124,14 +146,14 @@ async function fetchTransactionsFromPlaid(accessToken, startDate, endDate) {
 // Set up a free cron at cron-job.org to GET this URL every 14 min
 app.get('/health', async (req, res) => {
   try {
-    await db.query('SELECT 1');           // warms the DB connection too
+    await db.query('SELECT 1');
     res.json({ status: 'ok', ts: new Date().toISOString() });
   } catch (err) {
     res.status(503).json({ status: 'error', message: err.message });
   }
 });
 
-// Legacy health check (keeps existing /api route working)
+// Legacy health check
 app.get('/api', (req, res) => {
   res.json({ status: 'ok', message: 'Fintrack API is running' });
 });
@@ -200,16 +222,14 @@ app.post('/api/transactions', async (req, res) => {
 
     await db.query('DELETE FROM transactions WHERE user_id = $1', [user_id]);
 
-    const catMap = {
-      'Food and Drink': 1,
-      'Travel':         2,
-      'Service':        3,
-      'Recreation':     4,
-    };
-
     for (const t of transactions) {
-      const plaidCat    = t.category?.[0] ?? 'Other';
-      const category_id = catMap[plaidCat] ?? 5;
+      // Use the normaliser — passes the full Plaid category array for accurate mapping
+      const category_id = plaidCategoryToId(t.category ?? []);
+
+      console.log(
+        `[Category] "${t.name}" | Plaid: [${(t.category ?? []).join(', ')}] → category_id: ${category_id}`
+      );
+
       await db.query(
         `INSERT INTO transactions (user_id, date, description, amount, category_id)
          VALUES ($1, $2, $3, $4, $5)
