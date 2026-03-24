@@ -13,6 +13,21 @@
     <link rel="stylesheet" href="style.css" />
   </head>
   <body>
+    <!-- ===== COLD-START LOADING OVERLAY ===== -->
+    <div class="cold-overlay" id="coldOverlay">
+      <div class="cold-box">
+        <div class="cold-spinner"></div>
+        <div class="cold-title">Fin<span class="logo-accent">track</span></div>
+        <div class="cold-msg" id="coldMsg">Waking up the server…</div>
+        <div class="cold-bar-track">
+          <div class="cold-bar" id="coldBar"></div>
+        </div>
+        <div class="cold-hint" id="coldHint">
+          This may take up to 90s on first load
+        </div>
+      </div>
+    </div>
+
     <!-- Toast notification container -->
     <div id="toastContainer"></div>
 
