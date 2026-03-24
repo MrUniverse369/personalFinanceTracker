@@ -551,7 +551,6 @@ body {
   outline: none;
   transition: border-color 0.15s, box-shadow 0.15s;
   width: 100%;
-  -webkit-appearance: none;
 }
 
 .input::placeholder { color: var(--text-3); }
