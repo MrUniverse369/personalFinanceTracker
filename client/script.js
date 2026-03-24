@@ -8,6 +8,12 @@ const baseUrl = 'https://personalFinanceTracker-api.onrender.com/api';
 const apiStatusDot  = document.getElementById('apiStatusDot');
 const apiStatusText = document.getElementById('apiStatusText');
 
+// ✅ FIX 5: cold overlay elements wired up
+const coldOverlay = document.getElementById('coldOverlay');
+const coldMsg     = document.getElementById('coldMsg');
+const coldBar     = document.getElementById('coldBar');
+const coldHint    = document.getElementById('coldHint');
+
 const sections = {
   dashboard:    document.getElementById('section-dashboard'),
   transactions: document.getElementById('section-transactions'),
@@ -39,9 +45,9 @@ const pageTitle    = document.getElementById('pageTitle');
 const pageSubtitle = document.getElementById('pageSubtitle');
 
 const pageMeta = {
-  dashboard:    { title: 'Dashboard',     subtitle: 'Overview of your financial activity' },
-  transactions: { title: 'Transactions',  subtitle: 'Sync and browse your transaction history' },
-  users:        { title: 'Users',         subtitle: 'Manage your Fintrack accounts' },
+  dashboard:    { title: 'Dashboard',    subtitle: 'Overview of your financial activity' },
+  transactions: { title: 'Transactions', subtitle: 'Sync and browse your transaction history' },
+  users:        { title: 'Users',        subtitle: 'Manage your Fintrack accounts' },
 };
 
 // ------------------- INIT -------------------
@@ -101,11 +107,9 @@ function setupNavigation() {
 
 // ------------------- API STATUS -------------------
 async function checkApiStatus() {
-  const TIMEOUT_MS = 90000;
+  const TIMEOUT_MS   = 90000;
   const MAX_ATTEMPTS = 3;
-
-  // Use the correct lowercase render URL — capital letters can cause silent failures
-  const healthUrl = 'https://personalfinancetracker-api.onrender.com/api';
+  const healthUrl    = 'https://personalfinancetracker-api.onrender.com/api';
 
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
     try {
@@ -117,23 +121,35 @@ async function checkApiStatus() {
 
       if (!res.ok) throw new Error('API unreachable');
 
-      // Server is up — update status dot and dismiss overlay
+      // ✅ Server is up — update status dot
       apiStatusDot.style.backgroundColor = '#4fffb0';
       apiStatusDot.style.boxShadow       = '0 0 6px #4fffb0';
       apiStatusText.textContent          = 'Online';
-        return; // done
+
+      // ✅ Fill bar, update message, then dismiss overlay
+      coldMsg.textContent = 'Connected — loading app…';
+      coldBar.style.width = '100%';
+      setTimeout(() => coldOverlay.classList.add('hidden'), 700);
+      return;
 
     } catch (err) {
-      // On last attempt give up and show error
       if (attempt === MAX_ATTEMPTS) {
-        const msg = err.name === 'AbortError'
+        // ✅ All retries failed — update status dot
+        apiStatusDot.style.backgroundColor = '#ff6b6b';
+        apiStatusText.textContent          = 'Offline';
+
+        // ✅ Show error state on overlay then dismiss after a pause
+        coldMsg.textContent          = err.name === 'AbortError'
           ? 'Server took too long to respond.'
           : 'Could not reach the server.';
-            apiStatusDot.style.backgroundColor = '#ff6b6b';
-        apiStatusText.textContent          = 'Offline';
-      }
-      // Otherwise loop and try again (brief pause between retries)
-      else {
+        coldHint.textContent         = 'Check your connection or try refreshing.';
+        coldBar.style.background     = '#ff6b6b';
+        coldBar.style.width          = '100%';
+        setTimeout(() => coldOverlay.classList.add('hidden'), 2500);
+      } else {
+        // ✅ Show retry progress on bar and message
+        coldMsg.textContent = `Retrying… (attempt ${attempt + 1} of ${MAX_ATTEMPTS})`;
+        coldBar.style.width = `${(attempt / MAX_ATTEMPTS) * 60}%`;
         await new Promise(r => setTimeout(r, 2000));
       }
     }

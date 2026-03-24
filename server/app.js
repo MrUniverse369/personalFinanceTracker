@@ -2,27 +2,13 @@
 //  FINTRACK — Express Server (app.js)
 // ============================================================
 require('dotenv').config();
-const express  = require('express');
-const cors     = require('cors');
-const path     = require('path');
-const db       = require('./db');
-const { PlaidApi, PlaidEnvironments, Configuration } = require('plaid');
+const express    = require('express');
+const cors       = require('cors');
+const path       = require('path');
+const db         = require('./db');
+const plaidClient = require('./plaidClient'); // ✅ FIX 1: use shared client, removed inline duplicate
 
 const PORT = process.env.PORT || 5000;
-
-// ------------------- PLAID CLIENT -------------------
-const plaidConfig = new Configuration({
-  basePath: PlaidEnvironments.sandbox,
-  baseOptions: {
-    headers: {
-      'PLAID-CLIENT-ID': process.env.PLAID_CLIENT_ID,
-      'PLAID-SECRET': process.env.PLAID_SECRET,
-      'Plaid-Version': '2020-09-14',
-    },
-  },
-});
-
-const plaidClient = new PlaidApi(plaidConfig);
 
 // ------------------- EXPRESS SETUP -------------------
 const app = express();
@@ -71,24 +57,18 @@ function handleError(res, err, context = '') {
 }
 
 // ------------------- CATEGORY NORMALISER -------------------
-// Maps Plaid's raw category arrays to the clean IDs your DB and
-// client both expect: Food(1) Transport(2) Utilities(3) Entertainment(4) Other(5)
 function plaidCategoryToId(plaidCategories = []) {
   const top = (plaidCategories[0] ?? '').toLowerCase();
   const sub = (plaidCategories[1] ?? '').toLowerCase();
 
-  if (top.includes('food') || top.includes('restaurant') || sub.includes('restaurant') || sub.includes('coffee')) {
+  if (top.includes('food') || top.includes('restaurant') || sub.includes('restaurant') || sub.includes('coffee'))
     return 1; // Food
-  }
-  if (top.includes('travel') || top.includes('transport') || sub.includes('taxi') || sub.includes('ride') || sub.includes('airlines') || sub.includes('car service')) {
+  if (top.includes('travel') || top.includes('transport') || sub.includes('taxi') || sub.includes('ride') || sub.includes('airlines') || sub.includes('car service'))
     return 2; // Transport
-  }
-  if (top.includes('service') || top.includes('utilities') || top.includes('payment') || top.includes('bank') || top.includes('transfer') || sub.includes('utilities') || sub.includes('subscription')) {
+  if (top.includes('service') || top.includes('utilities') || top.includes('payment') || top.includes('bank') || top.includes('transfer') || sub.includes('utilities') || sub.includes('subscription'))
     return 3; // Utilities
-  }
-  if (top.includes('recreation') || top.includes('entertainment') || sub.includes('gym') || sub.includes('sport') || sub.includes('arts') || sub.includes('music')) {
+  if (top.includes('recreation') || top.includes('entertainment') || sub.includes('gym') || sub.includes('sport') || sub.includes('arts') || sub.includes('music'))
     return 4; // Entertainment
-  }
   return 5; // Other
 }
 
@@ -142,8 +122,7 @@ async function fetchTransactionsFromPlaid(accessToken, startDate, endDate) {
 
 // ------------------- ROUTES -------------------
 
-// ── Health check — keeps server + DB alive via cron ping ──
-// Set up a free cron at cron-job.org to GET this URL every 14 min
+// Health check
 app.get('/health', async (req, res) => {
   try {
     await db.query('SELECT 1');
@@ -162,10 +141,8 @@ app.get('/api', (req, res) => {
 app.post('/api/users', async (req, res) => {
   const { name, email } = req.body;
 
-  if (!name?.trim())
-    return res.status(400).json({ error: 'Name is required.' });
-  if (!email?.trim())
-    return res.status(400).json({ error: 'Email is required.' });
+  if (!name?.trim())  return res.status(400).json({ error: 'Name is required.' });
+  if (!email?.trim()) return res.status(400).json({ error: 'Email is required.' });
 
   const emailRe = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
   if (!emailRe.test(email))
@@ -178,9 +155,8 @@ app.post('/api/users', async (req, res) => {
     );
     res.status(201).json(result.rows[0]);
   } catch (err) {
-    if (err.code === '23505') {
+    if (err.code === '23505')
       return res.status(409).json({ error: 'A user with this email already exists.' });
-    }
     handleError(res, err, 'POST /api/users');
   }
 });
@@ -192,14 +168,15 @@ app.post('/api/transactions', async (req, res) => {
   if (!user_id || isNaN(user_id))
     return res.status(400).json({ error: 'A valid user_id is required.' });
 
-  const userCheck = await db.query(
-    'SELECT user_id FROM users WHERE user_id = $1',
-    [user_id]
-  );
-  if (!userCheck.rows.length)
-    return res.status(404).json({ error: `User ${user_id} not found.` });
-
   try {
+    // ✅ FIX 2: userCheck moved inside try/catch so DB errors return clean 500
+    const userCheck = await db.query(
+      'SELECT user_id FROM users WHERE user_id = $1',
+      [user_id]
+    );
+    if (!userCheck.rows.length)
+      return res.status(404).json({ error: `User ${user_id} not found.` });
+
     console.log('[Plaid] Creating sandbox public token...');
     const { data: ptData } = await plaidClient.sandboxPublicTokenCreate({
       institution_id: 'ins_109508',
@@ -222,20 +199,45 @@ app.post('/api/transactions', async (req, res) => {
 
     await db.query('DELETE FROM transactions WHERE user_id = $1', [user_id]);
 
-    for (const t of transactions) {
-      // Use the normaliser — passes the full Plaid category array for accurate mapping
-      const category_id = plaidCategoryToId(t.category ?? []);
+    // ✅ FIX 3: bulk insert inside a transaction instead of 100 sequential awaits
+    if (transactions.length > 0) {
+      const pgClient = await db.getClient();
+      try {
+        await pgClient.query('BEGIN');
 
-      console.log(
-        `[Category] "${t.name}" | Plaid: [${(t.category ?? []).join(', ')}] → category_id: ${category_id}`
-      );
+        // Build a single INSERT with N rows:
+        // INSERT INTO transactions (user_id, date, description, amount, category_id)
+        // VALUES ($1,$2,$3,$4,$5), ($1,$6,$7,$8,$9), ...
+        const valuePlaceholders = [];
+        const params = [user_id]; // $1 is always user_id
+        let   paramIndex = 2;
 
-      await db.query(
-        `INSERT INTO transactions (user_id, date, description, amount, category_id)
-         VALUES ($1, $2, $3, $4, $5)
-         ON CONFLICT DO NOTHING`,
-        [user_id, t.date, t.name, t.amount, category_id]
-      );
+        for (const t of transactions) {
+          const category_id = plaidCategoryToId(t.category ?? []);
+          console.log(
+            `[Category] "${t.name}" | Plaid: [${(t.category ?? []).join(', ')}] → category_id: ${category_id}`
+          );
+          valuePlaceholders.push(
+            `($1, $${paramIndex}, $${paramIndex+1}, $${paramIndex+2}, $${paramIndex+3})`
+          );
+          params.push(t.date, t.name, t.amount, category_id);
+          paramIndex += 4;
+        }
+
+        await pgClient.query(
+          `INSERT INTO transactions (user_id, date, description, amount, category_id)
+           VALUES ${valuePlaceholders.join(', ')}
+           ON CONFLICT DO NOTHING`,
+          params
+        );
+
+        await pgClient.query('COMMIT');
+      } catch (bulkErr) {
+        await pgClient.query('ROLLBACK');
+        throw bulkErr;
+      } finally {
+        pgClient.release();
+      }
     }
 
     res.json({

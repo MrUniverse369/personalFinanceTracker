@@ -1,9 +1,8 @@
 // ============================================================
 //  FINTRACK — Database Client (db.js)
 // ============================================================
-
-const { Pool } = require('pg');
 require('dotenv').config();
+const { Pool } = require('pg');
 
 if (!process.env.DATABASE_URL) {
   throw new Error('DATABASE_URL environment variable is not set.');
@@ -11,10 +10,12 @@ if (!process.env.DATABASE_URL) {
 
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
-  max:              5,      // free tier has limited connections; keep pool small
+  max: 5,
   idleTimeoutMillis: 30000,
-  connectionTimeoutMillis: 10000, // increased: free DB can be slow to accept on cold start
-  ssl: process.env.DB_SSL === 'true' ? { rejectUnauthorized: false } : false,
+  connectionTimeoutMillis: 10000,
+  // ✅ FIX 4: SSL always on for Render — no longer depends on DB_SSL env var
+  // Render's free PostgreSQL requires SSL; without this connections silently fail
+  ssl: { rejectUnauthorized: false },
 });
 
 // Log unexpected pool errors (prevent unhandled rejections)
@@ -22,8 +23,7 @@ pool.on('error', (err) => {
   console.error('[DB] Unexpected pool error:', err.message);
 });
 
-// Warm the pool on startup — but do NOT crash the server if the DB
-// is still waking up. The Pool will retry automatically on first request.
+// Warm the pool on startup — do NOT crash if DB is still waking up
 pool.connect()
   .then(client => {
     console.log('✅ Connected to PostgreSQL');
@@ -31,8 +31,6 @@ pool.connect()
   })
   .catch(err => {
     console.warn('⚠️  Initial DB connect failed (may still be waking up):', err.message);
-    // Do NOT call process.exit() — let the server stay alive.
-    // The pool will establish a connection on the first incoming request.
   });
 
 /**
@@ -45,7 +43,7 @@ async function query(text, params) {
   try {
     const result = await pool.query(text, params);
     if (process.env.NODE_ENV === 'development') {
-      console.log(`[DB] ${(Date.now() - start)}ms — ${text.slice(0, 80)}`);
+      console.log(`[DB] ${Date.now() - start}ms — ${text.slice(0, 80)}`);
     }
     return result;
   } catch (err) {
@@ -54,4 +52,12 @@ async function query(text, params) {
   }
 }
 
-module.exports = { query };
+/**
+ * Get a raw client from the pool — needed for multi-statement transactions
+ * (BEGIN / COMMIT / ROLLBACK). Always call client.release() in a finally block.
+ */
+async function getClient() {
+  return pool.connect();
+}
+
+module.exports = { query, getClient };

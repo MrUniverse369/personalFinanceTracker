@@ -1,9 +1,8 @@
 // ============================================================
 //  FINTRACK — Plaid Client (plaidClient.js)
 // ============================================================
-
-const { PlaidApi, PlaidEnvironments, Configuration } = require('plaid');
 require('dotenv').config();
+const { PlaidApi, PlaidEnvironments, Configuration } = require('plaid');
 
 const { PLAID_CLIENT_ID, PLAID_SECRET, PLAID_ENV = 'sandbox' } = process.env;
 
@@ -29,6 +28,7 @@ const configuration = new Configuration({
   },
 });
 
+// ✅ Single shared instance — imported by app.js, no duplicate inline client
 const client = new PlaidApi(configuration);
 
 module.exports = client;
