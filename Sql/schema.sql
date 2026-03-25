@@ -40,3 +40,44 @@ INSERT INTO categories (name) VALUES
     ('Entertainment'),
     ('Other')
 ON CONFLICT (name) DO NOTHING;
+-- ============================================================
+-- ER DIAGRAM (VISUAL REFERENCE)
+-- ============================================================
+
+-- +------------------+
+-- |      users       |
+-- +------------------+
+-- | user_id (PK)     |
+-- | name             |
+-- | email (UNIQUE)   |
+-- | created_at       |
+-- +------------------+
+--          |
+--          | 1
+--          |
+--          | *
+-- +----------------------+
+-- |    transactions      |
+-- +----------------------+
+-- | transaction_id (PK)  |
+-- | user_id (FK) --------+----> users.user_id
+-- | date                 |
+-- | description          |
+-- | amount               |
+-- | category_id (FK) ----+----> categories.category_id
+-- | created_at           |
+-- +----------------------+
+--          |
+--          | *
+--          |
+--          | 1
+-- +------------------+
+-- |   categories     |
+-- +------------------+
+-- | category_id (PK) |
+-- | name (UNIQUE)    |
+-- +------------------+
+
+-- Relationships:
+-- users (1) -------- (*) transactions
+-- categories (1) --- (*) transactions

@@ -8,7 +8,7 @@ const baseUrl = 'https://personalFinanceTracker-api.onrender.com/api';
 const apiStatusDot  = document.getElementById('apiStatusDot');
 const apiStatusText = document.getElementById('apiStatusText');
 
-// ✅ FIX 5: cold overlay elements wired up
+// ✅ FIX: cold overlay elements — were missing entirely from live file
 const coldOverlay = document.getElementById('coldOverlay');
 const coldMsg     = document.getElementById('coldMsg');
 const coldBar     = document.getElementById('coldBar');
@@ -121,12 +121,12 @@ async function checkApiStatus() {
 
       if (!res.ok) throw new Error('API unreachable');
 
-      // ✅ Server is up — update status dot
-      apiStatusDot.style.backgroundColor = '#4fffb0';
-      apiStatusDot.style.boxShadow       = '0 0 6px #4fffb0';
+      // ✅ FIX: update status dot to blue (matches new theme)
+      apiStatusDot.style.backgroundColor = '#1a56db';
+      apiStatusDot.style.boxShadow       = '0 0 6px #1a56db';
       apiStatusText.textContent          = 'Online';
 
-      // ✅ Fill bar, update message, then dismiss overlay
+      // ✅ FIX: fill bar, update message, then dismiss overlay
       coldMsg.textContent = 'Connected — loading app…';
       coldBar.style.width = '100%';
       setTimeout(() => coldOverlay.classList.add('hidden'), 700);
@@ -134,20 +134,19 @@ async function checkApiStatus() {
 
     } catch (err) {
       if (attempt === MAX_ATTEMPTS) {
-        // ✅ All retries failed — update status dot
-        apiStatusDot.style.backgroundColor = '#ff6b6b';
+        // ✅ FIX: all retries failed — show error state then dismiss after pause
+        apiStatusDot.style.backgroundColor = '#e02424';
         apiStatusText.textContent          = 'Offline';
 
-        // ✅ Show error state on overlay then dismiss after a pause
-        coldMsg.textContent          = err.name === 'AbortError'
+        coldMsg.textContent      = err.name === 'AbortError'
           ? 'Server took too long to respond.'
           : 'Could not reach the server.';
-        coldHint.textContent         = 'Check your connection or try refreshing.';
-        coldBar.style.background     = '#ff6b6b';
-        coldBar.style.width          = '100%';
+        coldHint.textContent     = 'Check your connection or try refreshing.';
+        coldBar.style.background = '#e02424';
+        coldBar.style.width      = '100%';
         setTimeout(() => coldOverlay.classList.add('hidden'), 2500);
       } else {
-        // ✅ Show retry progress on bar and message
+        // ✅ FIX: show retry progress on bar and message
         coldMsg.textContent = `Retrying… (attempt ${attempt + 1} of ${MAX_ATTEMPTS})`;
         coldBar.style.width = `${(attempt / MAX_ATTEMPTS) * 60}%`;
         await new Promise(r => setTimeout(r, 2000));
@@ -194,7 +193,7 @@ createUserBtn.addEventListener('click', async () => {
 
 function showResult(el, message, type = 'info') {
   el.textContent = message;
-  el.className = `result-badge ${type}`;
+  el.className   = `result-badge ${type}`;
   el.classList.remove('hidden');
   setTimeout(() => el.classList.add('hidden'), 4000);
 }
@@ -339,11 +338,11 @@ function updateDashboard(transactions, totalIncome, totalExpense) {
   const maxVal = Math.max(...Object.values(catTotals), 1);
 
   const catColors = {
-    Food:          '#4fffb0',
-    Transport:     '#74b9ff',
-    Utilities:     '#ffd166',
-    Entertainment: '#fd79a8',
-    Other:         '#50566a',
+    Food:          '#f59e0b',
+    Transport:     '#1a56db',
+    Utilities:     '#6b7280',
+    Entertainment: '#db2777',
+    Other:         '#64748b',
   };
 
   breakdown.innerHTML = Object.entries(catTotals)
@@ -352,7 +351,7 @@ function updateDashboard(transactions, totalIncome, totalExpense) {
       <div class="cat-row">
         <div class="cat-name">${cat}</div>
         <div class="cat-bar-wrap">
-          <div class="cat-bar" style="width:${(total / maxVal * 100).toFixed(1)}%; background:${catColors[cat] || '#50566a'}"></div>
+          <div class="cat-bar" style="width:${(total / maxVal * 100).toFixed(1)}%; background:${catColors[cat] || '#64748b'}"></div>
         </div>
         <div class="cat-amount">$${total.toFixed(0)}</div>
       </div>
