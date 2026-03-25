@@ -45,8 +45,8 @@
   --warning:       #d97706;
 
   /* Fonts */
-  --font-display:  'Syne', sans-serif;
-  --font-mono:     'DM Mono', monospace;
+  --font-display:  'Figtree', sans-serif;
+  --font-mono:     'IBM Plex Mono', monospace;
 
   /* Sizing */
   --sidebar-w:     240px;
@@ -122,7 +122,7 @@ body {
   font-family: var(--font-display);
   font-size: 1.5rem;
   font-weight: 800;
-  letter-spacing: -0.04em;
+  letter-spacing: -0.02em;
   color: var(--text-inv);
 }
 .cold-title .logo-accent { color: var(--blue); }
@@ -202,17 +202,27 @@ body {
   gap: 10px;
 }
 
-.logo-icon {
-  font-size: 1.2rem;
-  color: var(--blue);
-  line-height: 1;
+.logo-mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  background: var(--blue);
+  color: #fff;
+  font-family: var(--font-display);
+  font-size: 0.65rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  border-radius: 8px;
+  flex-shrink: 0;
 }
 
 .logo-text {
   font-family: var(--font-display);
-  font-size: 1.05rem;
-  font-weight: 800;
-  letter-spacing: -0.03em;
+  font-size: 1rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
   color: var(--text-inv);
 }
 
@@ -365,8 +375,8 @@ body {
 .page-title {
   font-family: var(--font-display);
   font-size: 1.05rem;
-  font-weight: 800;
-  letter-spacing: -0.03em;
+  font-weight: 700;
+  letter-spacing: -0.01em;
   color: var(--text);
   line-height: 1.2;
 }
@@ -463,7 +473,7 @@ body {
   font-family: var(--font-display);
   font-size: 1.75rem;
   font-weight: 800;
-  letter-spacing: -0.04em;
+  letter-spacing: -0.02em;
   color: var(--text);
   line-height: 1;
   margin-bottom: 6px;
@@ -551,6 +561,7 @@ body {
   outline: none;
   transition: border-color 0.15s, box-shadow 0.15s;
   width: 100%;
+  -webkit-appearance: none;
 }
 
 .input::placeholder { color: var(--text-3); }
@@ -894,7 +905,7 @@ tbody tr:hover td {
   z-index: 9000;
 }
 
-/* ===========================================================
+/* ============================================================
    RESPONSIVE — TABLET
    ============================================================ */
 @media (max-width: 1100px) {
